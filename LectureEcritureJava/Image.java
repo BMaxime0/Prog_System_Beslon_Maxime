@@ -15,7 +15,7 @@ public class Image {
      */
     public Image(int width, int hauteur) {
         this.width = width;
-        this.height = height;
+        this.height = hauteur;
         pixels = new int[hauteur][width][3];
     }
 
