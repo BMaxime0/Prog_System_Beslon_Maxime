@@ -46,6 +46,7 @@ public class Image {
                 }
                 writer.write("\n");
             }
+        writer.close();
         }
     }
 }
