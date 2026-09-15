@@ -1,5 +1,6 @@
 import java.io.FileWriter;
 import java.io.IOException;
+import java.io.FileOutputStream;
 
 public class Image {
 
@@ -54,30 +55,23 @@ public class Image {
      * Sauvegarde l'image au format texte / binaire
      */
     public void save_bin(String filename) throws IOException {
-        try(FileWriter writer = new FileWriter(filename)) {
-            writer.write("P6\n");
-            writer.write("200 100\n");
-            writer.write("255\n");
+        FileOutputStream writer = new FileOutputStream(filename);
 
-            //je reprends le même système mais j'appelle ma fonction pour obtenir le binaire sur ma couleur bleu
-            for (int y = 0; y < 100; y++) {
-                for (int x = 0; x < 200; x ++) {
-                    writer.write("0b00000000 0b00000000 " + intToBinaire(pixels[x][y][2]) + " ");
-                }
-                writer.write("\n");
+        // écriture de l'entête du fichier binarie PPM
+        String entete = "P6\n" + width + " " + height + "\n255\n";
+        writer.write(entete.getBytes());
+
+        byte[] pixel = new byte[3];
+
+        for (int y = 0; y < 100; y++) {
+            for (int x = 0; x < 200; x++) {
+                pixel[0] = (byte) pixels[x][y][0];
+                pixel[1] = (byte) pixels[x][y][1];
+                pixel[2] = (byte) pixels[x][y][2];
+                writer.write(pixel);
             }
-
         }
-    }
-
-    public String intToBinaire(int couleur) {
-
-        if (couleur < 0 || couleur > 255) {
-            throw new IllegalArgumentException("La valeur RGB doit être comprise entre 0 et 255.");
-        }
-
-        // Convertit en binaire et formate sur 8 caractères avec des zéros à gauche
-        return String.format("%8s", Integer.toBinaryString(couleur)).replace(' ', '0');
+        writer.close();
     }
 
 }
