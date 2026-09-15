@@ -49,4 +49,35 @@ public class Image {
         writer.close();
         }
     }
+
+    /**
+     * Sauvegarde l'image au format texte / binaire
+     */
+    public void save_bin(String filename) throws IOException {
+        try(FileWriter writer = new FileWriter(filename)) {
+            writer.write("P6\n");
+            writer.write("200 100\n");
+            writer.write("255\n");
+
+            //je reprends le même système mais j'appelle ma fonction pour obtenir le binaire sur ma couleur bleu
+            for (int y = 0; y < 100; y++) {
+                for (int x = 0; x < 200; x ++) {
+                    writer.write("0b00000000 0b00000000 " + intToBinaire(pixels[x][y][2]) + " ");
+                }
+                writer.write("\n");
+            }
+
+        }
+    }
+
+    public String intToBinaire(int couleur) {
+
+        if (couleur < 0 || couleur > 255) {
+            throw new IllegalArgumentException("La valeur RGB doit être comprise entre 0 et 255.");
+        }
+
+        // Convertit en binaire et formate sur 8 caractères avec des zéros à gauche
+        return String.format("%8s", Integer.toBinaryString(couleur)).replace(' ', '0');
+    }
+
 }
