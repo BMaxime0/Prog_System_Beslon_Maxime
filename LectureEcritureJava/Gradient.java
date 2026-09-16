@@ -11,7 +11,7 @@ public class Gradient {
 
             for (int x = 0; x < img.getWidth() ; x++) {
 
-                int bleu = ((x*255)/200); // quel calcule ? = produit en croix ((200*100)/255 = 0.78)
+                int bleu = ((x*255)/200); // quel calcule ? = produit en croix
                 img.setPixel(x, y, 0, 0, bleu);
             }
         }
