@@ -30,19 +30,16 @@ public class MemoryManager {
     }
 
     private void initializeFilesystem() {
-    writeSuperblock();
+        writeSuperblock();
+        for (int i = 0; i < 128; i++) {
+            int indexOctet = BITMAP_OFFSET + (i / 8);
+            int indexBit = i % 8;
+            memory[indexOctet] |= (byte) (0x01 << indexBit);
+        }
 
-    //marque les blocs 0 à 127 comme occupés (16 octets à 11111111)
-    for (int i = 0; i < 16; i++) {
-        memory[BITMAP_OFFSET + i] = (byte) 0xFF;
     }
 
-    //marque le bloc 128 comme occupé (1er bit du 17e octet)
-    memory[BITMAP_OFFSET + 16] = (byte) 0x80;
-}
-
     private void writeSuperblock() {
-        // TODO:
         // Utiliser Utils pour écrire les métadonnées.
 
         Utils.writeString(
@@ -75,4 +72,48 @@ public class MemoryManager {
     public byte[] getFilesystemMemory() {
         return memory;
     }
+
+    public boolean setBlockUsed(int blockNumber, boolean used) {
+        if (blockNumber < 0 || blockNumber >= NUM_BLOCKS) {
+                return false;
+        }
+
+        int byteIndex = blockNumber / 8;
+        int bitPosition = blockNumber % 8;
+        int offset = BITMAP_OFFSET + byteIndex;
+
+        if (used) {
+                memory[offset] |= (byte) (0x01 << bitPosition);
+        } else {
+                memory[offset] &= (byte) ~(0x01 << bitPosition);
+        }
+        return true;
+        }
+
+        public int isBlockUsed(int blockNumber) {
+
+        if (blockNumber < 0 ||
+                blockNumber >= NUM_BLOCKS) {
+                return -1;
+        }
+
+        int byteIndex = blockNumber / 8;
+        int bitPosition = blockNumber % 8;
+        int offset = BITMAP_OFFSET + byteIndex;
+
+        return (int) (memory[offset] >> bitPosition & 0x01);
+        }
+
+        public int allocateBlock() {
+
+        int i = 129;
+        while (i < NUM_BLOCKS && isBlockUsed(i) != 0) {
+                i++;
+        }
+        if (i >= NUM_BLOCKS) {
+                return -1;
+        }
+        setBlockUsed(i,true);
+        return i;
+        }
 }
