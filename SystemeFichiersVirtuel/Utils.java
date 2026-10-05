@@ -9,22 +9,6 @@ public class Utils {
     }
 
     public static int readInt(byte[] memory, int offset) {
-<<<<<<< HEAD
-
-        int F0 = (int) memory[offset];
-        int A1 = (int) memory[offset + 1] << 8;
-        int B2 = (int) memory[offset + 2] << 16;
-        int C3 = (int) memory[offset + 3] << 24;
-
-        return F0 + A1 + B2 + C3;
-    }
-
-    public static int writeShort(byte[] memory, int offset, short value) {
-        
-        memory[offset + 1] = (byte) (value & 0xFF);
-        memory[offset] = (byte) (value >> 8 & 0xFF);
-
-=======
         int value = memory[offset] & 0xFF;
         value = (value << 8) | (memory[offset + 1] & 0xFF);
         value = (value << 8) | (memory[offset + 2] & 0xFF);
@@ -35,22 +19,13 @@ public class Utils {
     public static int writeShort(byte[] memory, int offset, short value) {
         memory[offset]= (byte)((value >> 8) & 0xFF);
         memory[offset+1]= (byte)(value & 0xFF);
->>>>>>> 0b10d11f1829179ad20568416d8e6951bde51c11
         return 2;
     }
 
     public static short readShort(byte[] memory, int offset) {
-<<<<<<< HEAD
-        
-        short F0 = (short) memory[offset];
-        short A1 = (short) memory[offset+1] << 8;
-
-        return F0 + A1;
-=======
         int value = memory[offset] & 0xFF;
         value = (value << 8) | (memory[offset + 1] & 0xFF);
         return (short) value;
->>>>>>> 0b10d11f1829179ad20568416d8e6951bde51c11
     }
 
     public static int writeLong(byte[] memory, int offset, long value) {
