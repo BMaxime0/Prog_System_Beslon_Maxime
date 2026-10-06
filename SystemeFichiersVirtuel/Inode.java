@@ -51,51 +51,71 @@ public class Inode {
         short permissions,
         int linkCount) {
 
-    if (directPointers == null || directPointers.length != 10) {
-        throw new IllegalArgumentException(
-                "Il faut exactement 10 pointeurs directs");
-    }
+        if (directPointers == null || directPointers.length != 10) {
+            throw new IllegalArgumentException(
+                    "Il faut exactement 10 pointeurs directs");
+        }
 
-    byte[] memory = memoryManager.getFilesystemMemory();
+        byte[] memory = memoryManager.getFilesystemMemory();
 
-    int offset = getInodeOffset();   // curseur
+        int offset = getInodeOffset();   // curseur
 
-    // 1. Numéro d'inode (4 octets)
-    Utils.writeInt(memory, offset, inodeNumber);
-    offset += 4;
+        // 1. Numéro d'inode (4 octets)
+        Utils.writeInt(memory, offset, inodeNumber);
+        offset += 4;
 
-    // 2. Type (4 octets)
-    Utils.writeInt(memory, offset, fileType);
-    offset += 4;
+        // 2. Type (4 octets)
+        Utils.writeInt(memory, offset, fileType);
+        offset += 4;
 
-    // 3. Taille (4 octets)
-    Utils.writeInt(memory, offset, fileSize);
-    offset += 4;
+        // 3. Taille (4 octets)
+        Utils.writeInt(memory, offset, fileSize);
+        offset += 4;
 
-    // 4. Création (8 octets)
-    Utils.writeLong(memory, offset, creationTime);
-    offset += 8;
+        // 4. Création (8 octets)
+        Utils.writeLong(memory, offset, creationTime);
+        offset += 8;
 
-    // 5. Modification (8 octets)
-    Utils.writeLong(memory, offset, modificationTime);
-    offset += 8;
+        // 5. Modification (8 octets)
+        Utils.writeLong(memory, offset, modificationTime);
+        offset += 8;
 
-    // 6. 10 pointeurs directs (10 x 4 octets)
-    for (int i = 0; i < 10; i++) {
-        Utils.writeInt(memory, offset, directPointers[i]);
+        // 6. 10 pointeurs directs (10 x 4 octets)
+        for (int i = 0; i < 10; i++) {
+            Utils.writeInt(memory, offset, directPointers[i]);
+            offset += 4;
+        }
+
+        // 7. Pointeur indirect (4 octets)
+        Utils.writeInt(memory, offset, indirectPointer);
+        offset += 4;
+
+        // 8. Permissions (2 octets)
+        Utils.writeShort(memory, offset, permissions);
+        offset += 2;
+
+        // 9. Nombre de liens (4 octets)
+        Utils.writeInt(memory, offset, linkCount);
         offset += 4;
     }
 
-    // 7. Pointeur indirect (4 octets)
-    Utils.writeInt(memory, offset, indirectPointer);
-    offset += 4;
+    public long getCreationTime() {
+        return Utils.readLong(memoryManager.getFilesystemMemory(), getInodeOffset() + 12);
+    }
 
-    // 8. Permissions (2 octets)
-    Utils.writeShort(memory, offset, permissions);
-    offset += 2;
+    public long getModificationTime() {
+        return Utils.readLong(memoryManager.getFilesystemMemory(), getInodeOffset() + 20);
+    }
 
-    // 9. Nombre de liens (4 octets)
-    Utils.writeInt(memory, offset, linkCount);
-    offset += 4;
-}
+    public int getIndirectPointer() {
+        return Utils.readInt(memoryManager.getFilesystemMemory(), getInodeOffset() + 68);
+    }
+
+    public short getPermissions() {
+        return Utils.readShort(memoryManager.getFilesystemMemory(), getInodeOffset() + 72);
+    }
+
+    public int getLinkCount() {
+        return Utils.readInt(memoryManager.getFilesystemMemory(), getInodeOffset() + 74);
+    }
 }
