@@ -148,4 +148,41 @@ public class VirtualFileSystem {
 
         return fileData;
     }
+
+    public boolean deleteFile(int inodeNum) {
+
+        if (inodeNum < 0 || inodeNum >= MemoryManager.MAX_INODES) {
+            return false;
+        }
+
+        Inode inode = new Inode(memoryManager, inodeNum);
+
+        if (inode.getFileType() == 0) {
+            return false;   // inode déjà libre : rien à supprimer
+        }
+
+        // 1. Libérer les blocs de données dans le bitmap
+        int[] pointers = inode.getDirectPointers();
+        int blocksUsed =
+                (inode.getFileSize() + MemoryManager.BLOCK_SIZE - 1)
+                / MemoryManager.BLOCK_SIZE;
+
+        for (int i = 0; i < blocksUsed; i++) {
+            memoryManager.setBlockUsed(pointers[i], false);
+        }
+
+        // 2. Invalider l'inode (type = 0 => libre, taille et pointeurs remis à zéro)
+        inode.writeToMemory(
+                0,              // type : libre
+                0,              // taille
+                0L,             // création
+                0L,             // modification
+                new int[10],    // plus aucun bloc
+                0,              // pas de pointeur indirect
+                (short) 0,      // permissions
+                0);             // liens
+
+        return true;
+    }
+
 }

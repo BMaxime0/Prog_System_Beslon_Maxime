@@ -1,3 +1,6 @@
+import java.io.FileReader;
+import java.io.IOException;
+
 public class TestRunner{
 
     public static void main(String[] args){
@@ -8,6 +11,7 @@ public class TestRunner{
         testStep7();
         testStep8();
         testStep9();
+        testStep10();
     }
 
     public static void testStep2() {
@@ -336,14 +340,146 @@ public class TestRunner{
                 "Buffer lu nul";
 
         assert readBytes.length
-                == original.length :
-                "Longueur lue incorrecte";
+            == original.length :
+            "Longueur lue incorrecte";
 
         for (int i = 0; i < original.length; i++) {
-                assert readBytes[i] == original[i] :
-                        "Octet incorrect à l'indice " + i;
+            assert readBytes[i] == original[i] :
+                "Octet incorrect à l'indice " + i;
         }
 
         System.out.println("[OK] Étape 9 validée !");
+    }
+
+    public static void testStep10() {
+        System.out.println("=== TEST ÉTAPE 10 : Suppression et fragmentation ===");
+
+        VirtualFileSystem vfs = new VirtualFileSystem();
+        MemoryManager mm = vfs.getMemoryManager();
+
+        // 4 fichiers d'un bloc chacun : inodes 0..3
+        byte[][] contents = new byte[4][512];
+        int[] block = new int[4];
+        for (int i = 0; i < 4; i++) {
+            assert vfs.createFile("/", "f" + i + ".bin");
+            java.util.Arrays.fill(contents[i], (byte) (i + 1));
+            assert vfs.writeFile(i, contents[i]);
+            block[i] = new Inode(mm, i).getDirectPointers()[0];
+            assert mm.isBlockUsed(block[i]) == 1 : "Bloc non marqué occupé";
         }
+
+        // Suppression des fichiers 1 et 3 : deux trous séparés par le bloc du fichier 2
+        assert vfs.deleteFile(1) : "Suppression refusée";
+        assert vfs.deleteFile(3) : "Suppression refusée";
+
+        // Blocs rendus au bitmap
+        assert mm.isBlockUsed(block[1]) == 0 : "Bloc 1 non libéré";
+        assert mm.isBlockUsed(block[3]) == 0 : "Bloc 3 non libéré";
+        assert mm.isBlockUsed(block[0]) == 1 : "Le fichier 0 ne doit pas être touché";
+        assert mm.isBlockUsed(block[2]) == 1 : "Le fichier 2 ne doit pas être touché";
+
+        // Inodes invalidés
+        for (int i : new int[] {1, 3}) {
+            Inode in = new Inode(mm, i);
+            assert in.getFileType() == 0 : "Inode non libéré";
+            assert in.getFileSize() == 0 : "Taille non remise à zéro";
+            for (int p : in.getDirectPointers()) assert p == 0 : "Pointeur non remis à zéro";
+        }
+
+        // Les fichiers restants sont intacts
+        assert java.util.Arrays.equals(vfs.readFile(0), contents[0]);
+        assert java.util.Arrays.equals(vfs.readFile(2), contents[2]);
+
+        // Double suppression et inode invalide refusés
+        assert !vfs.deleteFile(1) : "Inode déjà libre";
+        assert !vfs.deleteFile(-1) : "Numéro invalide";
+        assert !vfs.deleteFile(MemoryManager.MAX_INODES) : "Numéro invalide";
+
+        // Réutilisation : le nouvel inode est le premier libre (1),
+        // et ses 2 blocs sont les deux trous non contigus (fragmentation externe)
+        assert vfs.createFile("/", "frag.bin");
+        byte[] big = new byte[1024];
+        for (int i = 0; i < big.length; i++) big[i] = (byte) (i * 7);
+        assert vfs.writeFile(1, big) : "Écriture dans les trous impossible";
+
+        int[] p = new Inode(mm, 1).getDirectPointers();
+        assert p[0] == block[1] && p[1] == block[3] : "Les blocs libérés doivent être réutilisés";
+        assert p[1] != p[0] + 1 : "Les blocs doivent être non contigus";
+        assert java.util.Arrays.equals(vfs.readFile(1), big) : "Lecture du fichier fragmenté incorrecte";
+
+        System.out.println("[OK] Étape 10 validée !");
+    }
+
+    public static void testExternalFile(
+        String filename) {
+
+        System.out.println(
+                "=== TEST FICHIER EXTERNE ===");
+
+        StringBuilder builder =
+                new StringBuilder();
+
+        try (FileReader reader =
+                    new FileReader(filename)) {
+
+            char[] buffer =
+                    new char[1024];
+
+            int count;
+
+            while ((count =
+                    reader.read(buffer)) != -1) {
+
+                builder.append(
+                        buffer,
+                        0,
+                        count);
+            }
+
+        } catch (IOException e) {
+            throw new AssertionError(
+                    "Impossible de lire le fichier externe",
+                    e);
+        }
+
+        String content =
+                builder.toString();
+
+        byte[] original =
+                content.getBytes();
+
+        VirtualFileSystem vfs =
+                new VirtualFileSystem();
+
+        assert vfs.createFile(
+                "/",
+                "external.txt") :
+                "Impossible de créer le fichier VFS";
+
+        assert vfs.writeFile(
+                0,
+                original) :
+                "Impossible d'écrire le fichier externe";
+
+        byte[] recovered =
+                vfs.readFile(0);
+
+        assert recovered != null :
+                "Les données récupérées sont nulles";
+
+        assert recovered.length
+                == original.length :
+                "Taille du fichier différente";
+
+        for (int i = 0;
+            i < original.length;
+            i++) {
+
+            assert recovered[i] == original[i] :
+                    "Différence à l'octet " + i;
+        }
+
+        System.out.println(
+                "[OK] Fichier externe correctement transféré !");
+    }
 }
