@@ -1,13 +1,20 @@
+import java.io.FileReader;
+import java.io.IOException;
+
 public class TestRunner{
 
-        public static void main(String[] args){
-                testStep2();
-                testStep4();
-                testStep5();
-                testStep6();
-        }
-        
-        public static void testStep2() {
+    public static void main(String[] args){
+        testStep2();
+        testStep4();
+        testStep5();
+        testStep6();
+        testStep7();
+        testStep8();
+        testStep9();
+        testStep10();
+    }
+
+    public static void testStep2() {
         System.out.println("=== TEST ÉTAPE 2 : Utils Entiers ===");
 
         byte[] buffer = new byte[32];
@@ -40,132 +47,439 @@ public class TestRunner{
                 "Erreur writeShort / readShort";
 
         System.out.println("[OK] Étape 2 validée !");
+    }
+
+
+    public static void testStep4() {
+        System.out.println("=== TEST ÉTAPE 4 : Initialisation Mémoire ===");
+
+        MemoryManager mm = new MemoryManager();
+
+        byte[] mem = mm.getFilesystemMemory();
+
+        assert mem != null :
+                "La mémoire ne doit pas être nulle";
+
+        assert mem.length == MemoryManager.TOTAL_MEMORY :
+                "Taille mémoire incorrecte";
+
+        assert Utils.readString(
+                mem,
+                MemoryManager.SUPERBLOCK_OFFSET,
+                16).equals("MYFS1.0") :
+                "Signature du superbloc incorrecte";
+
+        assert Utils.readInt(
+                mem,
+                MemoryManager.SUPERBLOCK_OFFSET + 16)
+                == MemoryManager.BLOCK_SIZE :
+                "Taille de bloc incorrecte";
+
+        assert Utils.readInt(
+                mem,
+                MemoryManager.SUPERBLOCK_OFFSET + 20)
+                == MemoryManager.TOTAL_MEMORY :
+                "Taille mémoire incorrecte";
+
+        assert Utils.readInt(
+                mem,
+                MemoryManager.SUPERBLOCK_OFFSET + 24)
+                == MemoryManager.NUM_BLOCKS :
+                "Nombre de blocs incorrect";
+
+        assert Utils.readInt(
+                mem,
+                MemoryManager.SUPERBLOCK_OFFSET + 28)
+                == MemoryManager.MAX_INODES :
+                "Nombre maximal d'inodes incorrect";
+
+        System.out.println("[OK] Étape 4 validée !");
+    }         
+
+    public static void testStep5() {
+        System.out.println("=== TEST ÉTAPE 5 : Bitmap et Allocation ===");
+
+        MemoryManager mm = new MemoryManager();
+
+        assert mm.setBlockUsed(130, true) :
+                "setBlockUsed doit réussir";
+
+        assert mm.isBlockUsed(130) == 1 :
+                "Le bloc 130 doit être occupé";
+
+        assert mm.setBlockUsed(130, false) :
+                "La libération doit réussir";
+
+        assert mm.isBlockUsed(130) == 0 :
+                "Le bloc 130 doit être libre";
+
+        mm.setBlockUsed(129, true);
+
+        int bitmapOffset =
+                MemoryManager.BITMAP_OFFSET + (129 / 8);
+
+        assert (mm.getFilesystemMemory()[bitmapOffset]
+                & 0xFF) == 0x02 :
+                "Le bit du bloc 129 est incorrect";
+
+        mm.setBlockUsed(130, true);
+
+        assert (mm.getFilesystemMemory()[bitmapOffset]
+                & 0xFF) == 0x06 :
+                "Les bits 129 et 130 sont incorrects";
+
+        mm.setBlockUsed(130, false);
+
+        assert (mm.getFilesystemMemory()[bitmapOffset]
+                & 0xFF) == 0x02 :
+                "La libération du bloc 130 est incorrecte";
+
+        MemoryManager mm2 = new MemoryManager();
+
+        int first = mm2.allocateBlock();
+        int second = mm2.allocateBlock();
+
+        assert first == 129 :
+                "Le premier bloc de données doit être 129";
+
+        assert second == 130 :
+                "Le second bloc de données doit être 130";
+
+        assert mm2.isBlockUsed(129) == 1;
+        assert mm2.isBlockUsed(130) == 1;
+
+        assert mm2.isBlockUsed(-1) == -1 :
+                "Un bloc négatif doit être refusé";
+
+        assert mm2.isBlockUsed(
+                MemoryManager.NUM_BLOCKS) == -1 :
+                "Un bloc hors limites doit être refusé";
+
+        System.out.println("[OK] Étape 5 validée !");
+    }
+
+    public static void testStep6() {
+        System.out.println("=== TEST ÉTAPE 6 : Adressage Inode ===");
+
+        MemoryManager mm = new MemoryManager();
+
+        Inode inode = new Inode(mm, 4);
+
+        int expectedOffset =
+                MemoryManager.INODE_TABLE_OFFSET
+                + (4 * Inode.INODE_SIZE);
+
+        assert inode.getInodeOffset() == expectedOffset :
+                "Offset d'inode incorrect";
+
+        System.out.println("[OK] Étape 6 validée !");
+    }
+
+    public static void testStep7() {
+        System.out.println("=== TEST ÉTAPE 7 : Sérialisation Inode ===");
+
+        MemoryManager mm = new MemoryManager();
+
+        Inode inode = new Inode(mm, 2);
+
+        int[] ptrs = new int[] {
+                150, 151, 0, 0, 0,
+                0, 0, 0, 0, 0
+        };
+
+        long creation = 0x0102030405060708L;
+        long modification = 0x1112131415161718L;
+
+        inode.writeToMemory(
+                1,
+                1024,
+                creation,
+                modification,
+                ptrs,
+                777,
+                (short) 0644,
+                3);
+
+        byte[] memory =
+                mm.getFilesystemMemory();
+
+        int offset = inode.getInodeOffset();
+
+        assert (memory[offset] & 0xFF) == 0x00;
+        assert (memory[offset + 3] & 0xFF) == 0x02;
+
+        assert Utils.readInt(memory, offset + 4) == 1;
+        assert Utils.readInt(memory, offset + 8) == 1024;
+
+        assert (memory[offset + 12] & 0xFF) == 0x01;
+        assert (memory[offset + 13] & 0xFF) == 0x02;
+        assert (memory[offset + 14] & 0xFF) == 0x03;
+        assert (memory[offset + 15] & 0xFF) == 0x04;
+        assert (memory[offset + 16] & 0xFF) == 0x05;
+        assert (memory[offset + 17] & 0xFF) == 0x06;
+        assert (memory[offset + 18] & 0xFF) == 0x07;
+        assert (memory[offset + 19] & 0xFF) == 0x08;
+
+        assert Utils.readLong(
+                memory,
+                offset + 12) == creation;
+
+        assert Utils.readLong(
+                memory,
+                offset + 20) == modification;
+
+        assert Utils.readInt(
+                memory,
+                offset + 28) == 150;
+
+        assert Utils.readInt(
+                memory,
+                offset + 32) == 151;
+
+        assert Utils.readInt(
+                memory,
+                offset + 68) == 777;
+
+        assert Utils.readShort(
+                memory,
+                offset + 72) == (short) 0644;
+
+        assert Utils.readInt(
+                memory,
+                offset + 74) == 3;
+
+        assert inode.getFileType() == 1;
+        assert inode.getFileSize() == 1024;
+
+        int[] result =
+                inode.getDirectPointers();
+
+        assert result[0] == 150;
+        assert result[1] == 151;
+
+        System.out.println("[OK] Étape 7 validée !");
+    }
+
+    public static void testStep8() {
+        System.out.println("=== TEST ÉTAPE 8 : Création Fichier ===");
+
+        VirtualFileSystem vfs =
+                new VirtualFileSystem();
+
+        boolean ok1 =
+                vfs.createFile("/", "fichier1.txt");
+
+        boolean ok2 =
+                vfs.createFile("/", "fichier2.txt");
+
+        assert ok1 :
+                "La création du premier fichier a échoué";
+
+        assert ok2 :
+                "La création du second fichier a échoué";
+
+        MemoryManager mm =
+                vfs.getMemoryManager();
+
+        Inode inode0 =
+                new Inode(mm, 0);
+
+        Inode inode1 =
+                new Inode(mm, 1);
+
+        assert inode0.getFileType() == 1 :
+                "L'inode 0 doit représenter un fichier";
+
+        assert inode1.getFileType() == 1 :
+                "L'inode 1 doit représenter un fichier";
+
+        assert inode0.getFileSize() == 0 :
+                "Le premier fichier doit être vide";
+
+        assert inode1.getFileSize() == 0 :
+                "Le second fichier doit être vide";
+
+        System.out.println("[OK] Étape 8 validée !");
+    }
+
+    public static void testStep9() {
+        System.out.println("=== TEST ÉTAPE 9 : Entrées/Sorties Fichier ===");
+
+        VirtualFileSystem vfs =
+                new VirtualFileSystem();
+
+        assert vfs.createFile(
+                "/",
+                "test.txt");
+
+        String text =
+                "Contenu de test du système de fichiers";
+
+        byte[] original =
+                text.getBytes();
+
+        boolean writeOk =
+                vfs.writeFile(0, original);
+
+        assert writeOk :
+                "Erreur d'écriture";
+
+        Inode inode =
+                new Inode(
+                        vfs.getMemoryManager(),
+                        0);
+
+        assert inode.getFileSize()
+                == original.length :
+                "Taille d'inode incorrecte";
+
+        byte[] readBytes =
+                vfs.readFile(0);
+
+        assert readBytes != null :
+                "Buffer lu nul";
+
+        assert readBytes.length
+            == original.length :
+            "Longueur lue incorrecte";
+
+        for (int i = 0; i < original.length; i++) {
+            assert readBytes[i] == original[i] :
+                "Octet incorrect à l'indice " + i;
         }
 
+        System.out.println("[OK] Étape 9 validée !");
+    }
 
-        public static void testStep4() {
-                System.out.println("=== TEST ÉTAPE 4 : Initialisation Mémoire ===");
+    public static void testStep10() {
+        System.out.println("=== TEST ÉTAPE 10 : Suppression et fragmentation ===");
 
-                MemoryManager mm = new MemoryManager();
+        VirtualFileSystem vfs = new VirtualFileSystem();
+        MemoryManager mm = vfs.getMemoryManager();
 
-                byte[] mem = mm.getFilesystemMemory();
-
-                assert mem != null :
-                        "La mémoire ne doit pas être nulle";
-
-                assert mem.length == MemoryManager.TOTAL_MEMORY :
-                        "Taille mémoire incorrecte";
-
-                assert Utils.readString(
-                        mem,
-                        MemoryManager.SUPERBLOCK_OFFSET,
-                        16).equals("MYFS1.0") :
-                        "Signature du superbloc incorrecte";
-
-                assert Utils.readInt(
-                        mem,
-                        MemoryManager.SUPERBLOCK_OFFSET + 16)
-                        == MemoryManager.BLOCK_SIZE :
-                        "Taille de bloc incorrecte";
-
-                assert Utils.readInt(
-                        mem,
-                        MemoryManager.SUPERBLOCK_OFFSET + 20)
-                        == MemoryManager.TOTAL_MEMORY :
-                        "Taille mémoire incorrecte";
-
-                assert Utils.readInt(
-                        mem,
-                        MemoryManager.SUPERBLOCK_OFFSET + 24)
-                        == MemoryManager.NUM_BLOCKS :
-                        "Nombre de blocs incorrect";
-
-                assert Utils.readInt(
-                        mem,
-                        MemoryManager.SUPERBLOCK_OFFSET + 28)
-                        == MemoryManager.MAX_INODES :
-                        "Nombre maximal d'inodes incorrect";
-
-                System.out.println("[OK] Étape 4 validée !");
-        }         
-
-        public static void testStep5() {
-                System.out.println("=== TEST ÉTAPE 5 : Bitmap et Allocation ===");
-
-                MemoryManager mm = new MemoryManager();
-
-                assert mm.setBlockUsed(130, true) :
-                        "setBlockUsed doit réussir";
-
-                assert mm.isBlockUsed(130) == 1 :
-                        "Le bloc 130 doit être occupé";
-
-                assert mm.setBlockUsed(130, false) :
-                        "La libération doit réussir";
-
-                assert mm.isBlockUsed(130) == 0 :
-                        "Le bloc 130 doit être libre";
-
-                mm.setBlockUsed(129, true);
-
-                int bitmapOffset =
-                        MemoryManager.BITMAP_OFFSET + (129 / 8);
-
-                assert (mm.getFilesystemMemory()[bitmapOffset]
-                        & 0xFF) == 0x02 :
-                        "Le bit du bloc 129 est incorrect";
-
-                mm.setBlockUsed(130, true);
-
-                assert (mm.getFilesystemMemory()[bitmapOffset]
-                        & 0xFF) == 0x06 :
-                        "Les bits 129 et 130 sont incorrects";
-
-                mm.setBlockUsed(130, false);
-
-                assert (mm.getFilesystemMemory()[bitmapOffset]
-                        & 0xFF) == 0x02 :
-                        "La libération du bloc 130 est incorrecte";
-
-                MemoryManager mm2 = new MemoryManager();
-
-                int first = mm2.allocateBlock();
-                int second = mm2.allocateBlock();
-
-                assert first == 129 :
-                        "Le premier bloc de données doit être 129";
-
-                assert second == 130 :
-                        "Le second bloc de données doit être 130";
-
-                assert mm2.isBlockUsed(129) == 1;
-                assert mm2.isBlockUsed(130) == 1;
-
-                assert mm2.isBlockUsed(-1) == -1 :
-                        "Un bloc négatif doit être refusé";
-
-                assert mm2.isBlockUsed(
-                        MemoryManager.NUM_BLOCKS) == -1 :
-                        "Un bloc hors limites doit être refusé";
-
-                System.out.println("[OK] Étape 5 validée !");
+        // 4 fichiers d'un bloc chacun : inodes 0..3
+        byte[][] contents = new byte[4][512];
+        int[] block = new int[4];
+        for (int i = 0; i < 4; i++) {
+            assert vfs.createFile("/", "f" + i + ".bin");
+            java.util.Arrays.fill(contents[i], (byte) (i + 1));
+            assert vfs.writeFile(i, contents[i]);
+            block[i] = new Inode(mm, i).getDirectPointers()[0];
+            assert mm.isBlockUsed(block[i]) == 1 : "Bloc non marqué occupé";
         }
 
-        public static void testStep6() {
-                System.out.println("=== TEST ÉTAPE 6 : Adressage Inode ===");
+        // Suppression des fichiers 1 et 3 : deux trous séparés par le bloc du fichier 2
+        assert vfs.deleteFile(1) : "Suppression refusée";
+        assert vfs.deleteFile(3) : "Suppression refusée";
 
-                MemoryManager mm = new MemoryManager();
+        // Blocs rendus au bitmap
+        assert mm.isBlockUsed(block[1]) == 0 : "Bloc 1 non libéré";
+        assert mm.isBlockUsed(block[3]) == 0 : "Bloc 3 non libéré";
+        assert mm.isBlockUsed(block[0]) == 1 : "Le fichier 0 ne doit pas être touché";
+        assert mm.isBlockUsed(block[2]) == 1 : "Le fichier 2 ne doit pas être touché";
 
-                Inode inode = new Inode(mm, 4);
-
-                int expectedOffset =
-                        MemoryManager.INODE_TABLE_OFFSET
-                        + (4 * Inode.INODE_SIZE);
-
-                assert inode.getInodeOffset() == expectedOffset :
-                        "Offset d'inode incorrect";
-
-                System.out.println("[OK] Étape 6 validée !");
+        // Inodes invalidés
+        for (int i : new int[] {1, 3}) {
+            Inode in = new Inode(mm, i);
+            assert in.getFileType() == 0 : "Inode non libéré";
+            assert in.getFileSize() == 0 : "Taille non remise à zéro";
+            for (int p : in.getDirectPointers()) assert p == 0 : "Pointeur non remis à zéro";
         }
 
+        // Les fichiers restants sont intacts
+        assert java.util.Arrays.equals(vfs.readFile(0), contents[0]);
+        assert java.util.Arrays.equals(vfs.readFile(2), contents[2]);
+
+        // Double suppression et inode invalide refusés
+        assert !vfs.deleteFile(1) : "Inode déjà libre";
+        assert !vfs.deleteFile(-1) : "Numéro invalide";
+        assert !vfs.deleteFile(MemoryManager.MAX_INODES) : "Numéro invalide";
+
+        // Réutilisation : le nouvel inode est le premier libre (1),
+        // et ses 2 blocs sont les deux trous non contigus (fragmentation externe)
+        assert vfs.createFile("/", "frag.bin");
+        byte[] big = new byte[1024];
+        for (int i = 0; i < big.length; i++) big[i] = (byte) (i * 7);
+        assert vfs.writeFile(1, big) : "Écriture dans les trous impossible";
+
+        int[] p = new Inode(mm, 1).getDirectPointers();
+        assert p[0] == block[1] && p[1] == block[3] : "Les blocs libérés doivent être réutilisés";
+        assert p[1] != p[0] + 1 : "Les blocs doivent être non contigus";
+        assert java.util.Arrays.equals(vfs.readFile(1), big) : "Lecture du fichier fragmenté incorrecte";
+
+        System.out.println("[OK] Étape 10 validée !");
+    }
+
+    public static void testExternalFile(
+        String filename) {
+
+        System.out.println(
+                "=== TEST FICHIER EXTERNE ===");
+
+        StringBuilder builder =
+                new StringBuilder();
+
+        try (FileReader reader =
+                    new FileReader(filename)) {
+
+            char[] buffer =
+                    new char[1024];
+
+            int count;
+
+            while ((count =
+                    reader.read(buffer)) != -1) {
+
+                builder.append(
+                        buffer,
+                        0,
+                        count);
+            }
+
+        } catch (IOException e) {
+            throw new AssertionError(
+                    "Impossible de lire le fichier externe",
+                    e);
+        }
+
+        String content =
+                builder.toString();
+
+        byte[] original =
+                content.getBytes();
+
+        VirtualFileSystem vfs =
+                new VirtualFileSystem();
+
+        assert vfs.createFile(
+                "/",
+                "external.txt") :
+                "Impossible de créer le fichier VFS";
+
+        assert vfs.writeFile(
+                0,
+                original) :
+                "Impossible d'écrire le fichier externe";
+
+        byte[] recovered =
+                vfs.readFile(0);
+
+        assert recovered != null :
+                "Les données récupérées sont nulles";
+
+        assert recovered.length
+                == original.length :
+                "Taille du fichier différente";
+
+        for (int i = 0;
+            i < original.length;
+            i++) {
+
+            assert recovered[i] == original[i] :
+                    "Différence à l'octet " + i;
+        }
+
+        System.out.println(
+                "[OK] Fichier externe correctement transféré !");
+    }
 }

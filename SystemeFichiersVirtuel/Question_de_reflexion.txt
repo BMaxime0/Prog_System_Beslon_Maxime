@@ -1,0 +1,27 @@
+Question 1 :
+
+Un byte[] ne dit pas dans quel ordre les 4 octets d'un entier ont été rangé, donc il faut une convention commune à l'écriture et à la lecture. En big-endian, l'octet de poids fort est écrit en premier. Si writeInt écrit en big-endian et que readInt lit en little-endian, les octet sont inversé : 1 (00 00 00 01) est relu comme 16 777 216 (01 00 00 00). Toutes les valeurs stockés sont alors fausses.
+
+Question 2 :
+
+En Java, un byte est signé (de −128 à 127). Quand il est converti en int, son bit de signe est recopié sur les bits supérieurs : 0xFF devient −1 au lieu de 255. Le & 0xFF est un ET bit à bit qui garde seulement les 8 bits de poids faible et met les autres à 0. On obtient ainsi une valeur non signé de 0 à 255, utilisable pour reconstruire l'entier.
+
+Question 3 :
+
+Si l'écriture et la lecture font la même erreur (même mauvais ordre d'octets, même mauvais décalage), read(write(x)) == x reste vrai alors que le format est incorrect. Il faut donc tester des valeurs bien choisies : 0, 1, −1, MIN_VALUE, MAX_VALUE, des valeurs avec 4 octets différents (0x01020304), des valeurs autour de 0x7F/0x80/0xFF, plus des valeurs aléatoires uniformes. Inspecter les octets directement, comme à l'étape 7, détecte les erreurs symétriques : mauvais ordre, mauvais offset, champs qui se chevauchent.
+
+Question 4 :
+
+Un bitmap utilise 1 bit par bloc, alors qu'un entier par bloc en utilise 32. Pour N blocs, sa taille est ⌈N/8⌉ octets. Ici, avec 2048 blocs, cela donne 256 octets contre 8192 avec un entier par bloc.
+
+Question 5 :
+
+Chaque méthode retrouve les structures grâce à des positions fixes (BITMAP_OFFSET, INODE_TABLE_OFFSET, etc.). Si ces zones n'étaient pas déterministes, l'écriture et la lecture ne tomberaient pas au même endroit. Si le bitmap était déplacé sans changer les méthodes qui l'utilisent, elles continueraient de lire et d'écrire à l'ancienne adresse, donc dans une autre zone (la table des inodes par exemple), et elles corrompraient les données.
+
+Question 6 :
+
+Les métadonnées ont une taille fixe et petite, alors que le contenu a une taille variable. Les séparer permet de retrouver un fichier directement par son numéro et de stocker son contenu dans des blocs non contigus. L'inode ne contient pas les données : il contient les numéros des blocs où elles se trouvent. C'est donc un index qui permet de retrouver le contenu.
+
+Question 7 :
+
+Les blocs 0 à 128 sont réservés au superbloc, au bitmap et à la table des inodes. Si la recherche commençait au bloc 0, allocateBlock() pourrait donner un de ces blocs à un fichier. Les données de l'utilisateur écraseraient alors les métadonnées du système et le système de fichiers serait détruit.
