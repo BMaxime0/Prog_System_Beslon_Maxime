@@ -26,7 +26,7 @@ public class TestMutex {
             }
 
             long resultat = CompteurSecurise.getCompteur();
-            System.out.println("Essai " + essai + " : " + resultat + " (attendu " + attendu + ")");
+            //System.out.println("Essai " + essai + " : " + resultat + " (attendu " + attendu + ")");
 
             if (resultat == attendu) {
                 nbCorrects++;
